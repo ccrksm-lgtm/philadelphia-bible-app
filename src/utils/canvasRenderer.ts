@@ -17,7 +17,14 @@ export interface CanvasRenderOptions {
 const CANVAS_SIZE = 1080;
 const HORIZONTAL_MARGIN = 110;
 const MAX_TEXT_WIDTH = CANVAS_SIZE - HORIZONTAL_MARGIN * 2;
-const MAX_VERTICAL_CONTENT_HEIGHT = CANVAS_SIZE - 180;
+const FOOTER_HEIGHT = 116;
+const VERSE_STAGE_TOP = 64;
+const VERSE_STAGE_BOTTOM = CANVAS_SIZE - FOOTER_HEIGHT - 36;
+const MAX_VERTICAL_CONTENT_HEIGHT = VERSE_STAGE_BOTTOM - VERSE_STAGE_TOP;
+
+const CHURCH_TITLE_TE = 'ఫిలదెల్ఫియ ప్రార్ధన మందిరం';
+const CHURCH_ADDRESS_TE =
+  'బెహార్లా వీధి, మహాలక్ష్మినగర్, జగన్నాధపురం, కాకినాడ - 533002';
 
 /**
  * Wraps Telugu text cleanly at whitespace/word boundaries so Telugu words and
@@ -108,6 +115,8 @@ export async function ensureCanvasFontsLoaded(
       document.fonts.load(`400 ${fontSize}px "${fontFamily}"`),
       document.fonts.load(`600 ${fontSize}px "${fontFamily}"`),
       document.fonts.load(`700 ${fontSize}px "${fontFamily}"`),
+      document.fonts.load(`700 28px "Noto Sans Telugu"`),
+      document.fonts.load(`400 21px "Noto Sans Telugu"`),
       document.fonts.load(`600 28px "Plus Jakarta Sans"`),
     ]);
     await document.fonts.ready;
@@ -119,7 +128,8 @@ export async function ensureCanvasFontsLoaded(
 export function renderVerseToCanvas(
   canvas: HTMLCanvasElement,
   backgroundImage: HTMLImageElement | null,
-  options: CanvasRenderOptions
+  options: CanvasRenderOptions,
+  churchLogoImage?: HTMLImageElement | null
 ): void {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
@@ -181,11 +191,11 @@ export function renderVerseToCanvas(
   ctx.fillStyle = radial;
   ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
-  // Subtle inset editorial frame border
+  // Subtle inset editorial frame border (stops cleanly above the bottom footer bar)
   ctx.save();
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
   ctx.lineWidth = 1.5;
-  ctx.strokeRect(42, 42, CANVAS_SIZE - 84, CANVAS_SIZE - 84);
+  ctx.strokeRect(42, 42, CANVAS_SIZE - 84, CANVAS_SIZE - FOOTER_HEIGHT - 64);
   ctx.restore();
 
   // 3. Auto-fit Telugu font size so long verses or single long words never clip or slice
@@ -229,7 +239,10 @@ export function renderVerseToCanvas(
     anchorX = CANVAS_SIZE - HORIZONTAL_MARGIN;
   }
 
-  const startY = (CANVAS_SIZE - totalBlockHeight) / 2 + effectiveFontSize * 0.85;
+  const startY =
+    VERSE_STAGE_TOP +
+    (VERSE_STAGE_BOTTOM - VERSE_STAGE_TOP - totalBlockHeight) / 2 +
+    effectiveFontSize * 0.85;
 
   // 4. Render Telugu Verse Lines with clean shadow for crisp diacritic clarity
   ctx.save();
@@ -275,6 +288,104 @@ export function renderVerseToCanvas(
     ctx.font = `600 ${refFontSize}px "${options.fontFamily}", "Noto Sans Telugu", sans-serif`;
     ctx.fillStyle = options.textColor === '#FFFFFF' ? '#F5EFE6' : options.textColor;
     ctx.fillText(`— ${options.referenceText.trim()}`, anchorX, refY);
+  }
+
+  ctx.restore();
+
+  // 6. Render Semi-Transparent Dark Church Footer Bar at the Very Bottom Center
+  const footerY = CANVAS_SIZE - FOOTER_HEIGHT;
+  ctx.save();
+  ctx.fillStyle = 'rgba(10, 9, 12, 0.72)';
+  ctx.fillRect(0, footerY, CANVAS_SIZE, FOOTER_HEIGHT);
+
+  // Delicate top hairline accent on footer bar
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, footerY + 0.5);
+  ctx.lineTo(CANVAS_SIZE, footerY + 0.5);
+  ctx.stroke();
+
+  const hasLogo = Boolean(
+    churchLogoImage && churchLogoImage.complete && churchLogoImage.naturalWidth > 0
+  );
+
+  const logoMaxBox = 72;
+  const logoGap = 20;
+  let logoDrawW = 0;
+  let logoDrawH = 0;
+
+  if (hasLogo && churchLogoImage) {
+    const logoRatio = churchLogoImage.naturalWidth / churchLogoImage.naturalHeight;
+    if (logoRatio >= 1) {
+      logoDrawW = logoMaxBox;
+      logoDrawH = logoMaxBox / logoRatio;
+    } else {
+      logoDrawH = logoMaxBox;
+      logoDrawW = logoMaxBox * logoRatio;
+    }
+  }
+
+  // Auto-fit footer font sizes so both Telugu lines never clip horizontally
+  let titleSize = 27;
+  let addrSize = 20;
+  const maxFooterTextWidth =
+    CANVAS_SIZE - 80 - (hasLogo ? logoDrawW + logoGap : 0);
+
+  let titleWidth = 0;
+  let addrWidth = 0;
+
+  while (addrSize >= 14) {
+    ctx.font = `700 ${titleSize}px "Noto Sans Telugu", sans-serif`;
+    titleWidth = ctx.measureText(CHURCH_TITLE_TE).width;
+    ctx.font = `400 ${addrSize}px "Noto Sans Telugu", sans-serif`;
+    addrWidth = ctx.measureText(CHURCH_ADDRESS_TE).width;
+    if (Math.max(titleWidth, addrWidth) <= maxFooterTextWidth) {
+      break;
+    }
+    titleSize -= 1;
+    addrSize -= 1;
+  }
+
+  const textBlockWidth = Math.max(titleWidth, addrWidth);
+  const footerCenterY = footerY + FOOTER_HEIGHT / 2;
+  const line1Y = footerCenterY - 8;
+  const line2Y = footerCenterY + 24;
+
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 1;
+  ctx.textBaseline = 'alphabetic';
+
+  if (hasLogo && churchLogoImage) {
+    const totalGroupWidth = logoDrawW + logoGap + textBlockWidth;
+    const groupStartX = (CANVAS_SIZE - totalGroupWidth) / 2;
+    const logoX = groupStartX;
+    const logoY = footerCenterY - logoDrawH / 2;
+
+    ctx.drawImage(churchLogoImage, logoX, logoY, logoDrawW, logoDrawH);
+
+    const textX = groupStartX + logoDrawW + logoGap;
+    ctx.textAlign = 'left';
+
+    ctx.font = `700 ${titleSize}px "Noto Sans Telugu", sans-serif`;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillText(CHURCH_TITLE_TE, textX, line1Y);
+
+    ctx.font = `400 ${addrSize}px "Noto Sans Telugu", sans-serif`;
+    ctx.fillStyle = '#FAF0D7';
+    ctx.fillText(CHURCH_ADDRESS_TE, textX, line2Y);
+  } else {
+    ctx.textAlign = 'center';
+
+    ctx.font = `700 ${titleSize}px "Noto Sans Telugu", sans-serif`;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillText(CHURCH_TITLE_TE, CANVAS_SIZE / 2, line1Y);
+
+    ctx.font = `400 ${addrSize}px "Noto Sans Telugu", sans-serif`;
+    ctx.fillStyle = '#FAF0D7';
+    ctx.fillText(CHURCH_ADDRESS_TE, CANVAS_SIZE / 2, line2Y);
   }
 
   ctx.restore();

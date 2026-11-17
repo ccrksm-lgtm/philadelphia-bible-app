@@ -13,6 +13,7 @@ interface VerseCanvasPreviewProps {
   fallbackImageUrl: string;
   customImageUrl: string | null;
   customImageName: string | null;
+  churchLogoUrl: string | null;
   themeLabel: string;
   onRegenerateAi: () => void;
   onClearCustomImage: () => void;
@@ -29,6 +30,7 @@ export const VerseCanvasPreview: React.FC<VerseCanvasPreviewProps> = ({
   fallbackImageUrl,
   customImageUrl,
   customImageName,
+  churchLogoUrl,
   themeLabel,
   onRegenerateAi,
   onClearCustomImage,
@@ -36,6 +38,7 @@ export const VerseCanvasPreview: React.FC<VerseCanvasPreviewProps> = ({
   downloadBusy,
 }) => {
   const [activeImage, setActiveImage] = useState<HTMLImageElement | null>(null);
+  const [churchLogoImage, setChurchLogoImage] = useState<HTMLImageElement | null>(null);
   const [status, setStatus] = useState<BackdropStatus>('loading-ai');
   const [copied, setCopied] = useState(false);
 
@@ -117,7 +120,33 @@ export const VerseCanvasPreview: React.FC<VerseCanvasPreviewProps> = ({
     };
   }, [aiImageUrl, fallbackImageUrl, customImageUrl]);
 
-  // Re-render canvas whenever image, verse, or typography options change
+  // Load optional Church Logo image from user upload
+  useEffect(() => {
+    if (!churchLogoUrl) {
+      setChurchLogoImage(null);
+      return;
+    }
+
+    let cancelled = false;
+    const logoImg = new Image();
+    logoImg.onload = () => {
+      if (!cancelled && logoImg.naturalWidth > 0) {
+        setChurchLogoImage(logoImg);
+      }
+    };
+    logoImg.onerror = () => {
+      if (!cancelled) {
+        setChurchLogoImage(null);
+      }
+    };
+    logoImg.src = churchLogoUrl;
+
+    return () => {
+      cancelled = true;
+    };
+  }, [churchLogoUrl]);
+
+  // Re-render canvas whenever image, logo, verse, or typography options change
   useEffect(() => {
     let cancelled = false;
 
@@ -126,7 +155,7 @@ export const VerseCanvasPreview: React.FC<VerseCanvasPreviewProps> = ({
       if (!canvas) return;
       await ensureCanvasFontsLoaded(renderOptions.fontFamily, renderOptions.fontSize);
       if (!cancelled) {
-        renderVerseToCanvas(canvas, activeImage, renderOptions);
+        renderVerseToCanvas(canvas, activeImage, renderOptions, churchLogoImage);
       }
     };
 
@@ -135,7 +164,7 @@ export const VerseCanvasPreview: React.FC<VerseCanvasPreviewProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [canvasRef, activeImage, renderOptions]);
+  }, [canvasRef, activeImage, churchLogoImage, renderOptions]);
 
   const handleCopyVerse = async () => {
     const content = renderOptions.referenceText
