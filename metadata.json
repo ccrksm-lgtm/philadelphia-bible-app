@@ -1,0 +1,8 @@
+{
+  "name": "Philadelphia Prardhana mandiram — Telugu Bible Verse Generator",
+  "description": "Create serene, high-resolution Telugu Christian Bible verse images with AI-generated spiritual backgrounds and authentic Telugu typography.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
