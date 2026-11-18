@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Check, Copy, Download, Loader2, RefreshCw } from 'lucide-react';
 import {
+  ASPECT_RATIO_CONFIG,
   CanvasRenderOptions,
   ensureCanvasFontsLoaded,
   renderVerseToCanvas,
@@ -14,6 +15,7 @@ interface VerseCanvasPreviewProps {
   customImageUrl: string | null;
   customImageName: string | null;
   churchLogoUrl: string | null;
+  footerBannerUrl: string | null;
   themeLabel: string;
   onRegenerateAi: () => void;
   onClearCustomImage: () => void;
@@ -31,6 +33,7 @@ export const VerseCanvasPreview: React.FC<VerseCanvasPreviewProps> = ({
   customImageUrl,
   customImageName,
   churchLogoUrl,
+  footerBannerUrl,
   themeLabel,
   onRegenerateAi,
   onClearCustomImage,
@@ -39,8 +42,11 @@ export const VerseCanvasPreview: React.FC<VerseCanvasPreviewProps> = ({
 }) => {
   const [activeImage, setActiveImage] = useState<HTMLImageElement | null>(null);
   const [churchLogoImage, setChurchLogoImage] = useState<HTMLImageElement | null>(null);
+  const [footerBannerImage, setFooterBannerImage] = useState<HTMLImageElement | null>(null);
   const [status, setStatus] = useState<BackdropStatus>('loading-ai');
   const [copied, setCopied] = useState(false);
+
+  const dims = ASPECT_RATIO_CONFIG[renderOptions.aspectRatio];
 
   // Load either user's uploaded photo OR Pollinations.ai image with instant studio/gradient fallback
   useEffect(() => {
@@ -69,7 +75,6 @@ export const VerseCanvasPreview: React.FC<VerseCanvasPreviewProps> = ({
 
     let aiResolved = false;
 
-    // Immediately load same-origin studio artwork (or fallback gradient if null) so canvas is never blank
     const fb = new Image();
     fb.crossOrigin = 'anonymous';
     fb.onload = () => {
@@ -79,7 +84,6 @@ export const VerseCanvasPreview: React.FC<VerseCanvasPreviewProps> = ({
     };
     fb.onerror = () => {
       if (!cancelled && !aiResolved) {
-        // Pure procedural gradient fallback in canvasRenderer
         setActiveImage(null);
       }
     };
@@ -146,7 +150,33 @@ export const VerseCanvasPreview: React.FC<VerseCanvasPreviewProps> = ({
     };
   }, [churchLogoUrl]);
 
-  // Re-render canvas whenever image, logo, verse, or typography options change
+  // Load optional Full-Width Custom Footer Banner image from user upload
+  useEffect(() => {
+    if (!footerBannerUrl) {
+      setFooterBannerImage(null);
+      return;
+    }
+
+    let cancelled = false;
+    const bannerImg = new Image();
+    bannerImg.onload = () => {
+      if (!cancelled && bannerImg.naturalWidth > 0) {
+        setFooterBannerImage(bannerImg);
+      }
+    };
+    bannerImg.onerror = () => {
+      if (!cancelled) {
+        setFooterBannerImage(null);
+      }
+    };
+    bannerImg.src = footerBannerUrl;
+
+    return () => {
+      cancelled = true;
+    };
+  }, [footerBannerUrl]);
+
+  // Re-render canvas whenever image, logo, banner, aspect ratio, verse, or typography options change
   useEffect(() => {
     let cancelled = false;
 
@@ -155,7 +185,13 @@ export const VerseCanvasPreview: React.FC<VerseCanvasPreviewProps> = ({
       if (!canvas) return;
       await ensureCanvasFontsLoaded(renderOptions.fontFamily, renderOptions.fontSize);
       if (!cancelled) {
-        renderVerseToCanvas(canvas, activeImage, renderOptions, churchLogoImage);
+        renderVerseToCanvas(
+          canvas,
+          activeImage,
+          renderOptions,
+          churchLogoImage,
+          footerBannerImage
+        );
       }
     };
 
@@ -164,7 +200,7 @@ export const VerseCanvasPreview: React.FC<VerseCanvasPreviewProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [canvasRef, activeImage, churchLogoImage, renderOptions]);
+  }, [canvasRef, activeImage, churchLogoImage, footerBannerImage, renderOptions]);
 
   const handleCopyVerse = async () => {
     const content = renderOptions.referenceText
@@ -179,15 +215,24 @@ export const VerseCanvasPreview: React.FC<VerseCanvasPreviewProps> = ({
     }
   };
 
+  const frameClass =
+    renderOptions.aspectRatio === 'landscape'
+      ? 'w-full aspect-video'
+      : renderOptions.aspectRatio === 'portrait'
+        ? 'h-[600px] sm:h-[660px] max-w-full aspect-[9/16] mx-auto'
+        : 'w-full aspect-square';
+
   return (
     <div className="flex flex-col gap-5">
       {/* Studio Artwork Frame */}
       <div className="relative bg-white p-3 sm:p-4 rounded-2xl border border-[#E6E0D6] shadow-sm">
-        <div className="relative w-full aspect-square overflow-hidden rounded-xl bg-[#1C1917]">
+        <div
+          className={`relative overflow-hidden rounded-xl bg-[#1C1917] flex items-center justify-center ${frameClass}`}
+        >
           <canvas
             ref={canvasRef}
-            width={1080}
-            height={1080}
+            width={dims.width}
+            height={dims.height}
             aria-label="Telugu Bible Verse Canvas Preview"
             className="w-full h-full block object-contain"
           />
@@ -216,7 +261,9 @@ export const VerseCanvasPreview: React.FC<VerseCanvasPreviewProps> = ({
                 : themeLabel}
             </span>
             <span aria-hidden="true">·</span>
-            <span className="tabular-nums">1080 × 1080 px</span>
+            <span className="tabular-nums">
+              {dims.width} × {dims.height} px
+            </span>
             <span aria-hidden="true">·</span>
             <span>
               {status === 'custom-upload'

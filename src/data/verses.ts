@@ -221,7 +221,12 @@ export const BACKGROUND_THEMES: BackgroundTheme[] = [
   },
 ];
 
-export function buildPollinationsUrl(englishPrompt: string, seed: number): string {
+export function buildPollinationsUrl(
+  englishPrompt: string,
+  seed: number,
+  width = 1080,
+  height = 1080
+): string {
   const cleanPrompt = englishPrompt.trim().replace(/\s+/g, ' ');
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=1080&height=1080&nologo=true&seed=${seed}`;
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=${width}&height=${height}&nologo=true&seed=${seed}`;
 }

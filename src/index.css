@@ -18,6 +18,30 @@
   font-family: "Mandali", sans-serif;
 }
 
+.font-telugu-ntr {
+  font-family: "NTR", sans-serif;
+}
+
+.font-telugu-ramabhadra {
+  font-family: "Ramabhadra", sans-serif;
+}
+
+.font-telugu-suranna {
+  font-family: "Suranna", serif;
+}
+
+.font-telugu-sree {
+  font-family: "Sree Krushnadevaraya", serif;
+}
+
+.font-telugu-timmana {
+  font-family: "Timmana", sans-serif;
+}
+
+.font-telugu-mallanna {
+  font-family: "Mallanna", sans-serif;
+}
+
 /* Custom subtle range slider */
 input[type="range"].studio-slider {
   -webkit-appearance: none;

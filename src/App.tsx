@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Image as ImageIcon,
   Loader2,
+  Palette,
   PenLine,
   RefreshCw,
   Search,
@@ -28,19 +29,109 @@ import {
   fetchTeluguBibleBook,
 } from './data/teluguBible';
 import {
+  ASPECT_RATIO_CONFIG,
+  CanvasAspectRatio,
   CanvasRenderOptions,
   TeluguFontFamily,
   TextAlignOption,
-  VerseTextColor,
+  TextShadowOption,
 } from './utils/canvasRenderer';
 import { VerseCanvasPreview } from './components/VerseCanvasPreview';
 
 type VerseMode = 'bible' | 'curated' | 'custom';
 
-const TEXT_COLORS: Array<{ label: string; hex: VerseTextColor; swatchBg: string }> = [
-  { label: 'White', hex: '#FFFFFF', swatchBg: '#FFFFFF' },
-  { label: 'Gold', hex: '#F3D078', swatchBg: '#F3D078' },
-  { label: 'Cream', hex: '#FAF0D7', swatchBg: '#FAF0D7' },
+const TEXT_COLORS: Array<{ label: string; hex: string }> = [
+  { label: 'White', hex: '#FFFFFF' },
+  { label: 'Gold', hex: '#F5D061' },
+  { label: 'Cream', hex: '#FDF6E3' },
+];
+
+const OUTLINE_COLORS: Array<{ label: string; value: string; swatch?: string }> = [
+  { label: 'None', value: 'none' },
+  { label: 'Black', value: '#000000', swatch: '#000000' },
+  { label: 'Gold', value: '#D4AF37', swatch: '#D4AF37' },
+];
+
+const TELUGU_FONTS: Array<{
+  family: TeluguFontFamily;
+  teluguName: string;
+  styleHint: string;
+}> = [
+  {
+    family: 'Noto Sans Telugu',
+    teluguName: 'నోటో సాన్స్ తెలుగు',
+    styleHint: 'Crisp · Multi-weight',
+  },
+  {
+    family: 'Mandali',
+    teluguName: 'మండలి',
+    styleHint: 'Clean Book',
+  },
+  {
+    family: 'NTR',
+    teluguName: 'ఎన్.టి.ఆర్',
+    styleHint: 'Soft Rounded',
+  },
+  {
+    family: 'Ramabhadra',
+    teluguName: 'రామభద్ర',
+    styleHint: 'Bold Display',
+  },
+  {
+    family: 'Suranna',
+    teluguName: 'సురన్న',
+    styleHint: 'Classic Serif',
+  },
+  {
+    family: 'Sree Krushnadevaraya',
+    teluguName: 'శ్రీ కృష్ణదేవరాయ',
+    styleHint: 'Editorial · Calligraphic',
+  },
+  {
+    family: 'Timmana',
+    teluguName: 'తిమ్మన',
+    styleHint: 'Compact',
+  },
+  {
+    family: 'Mallanna',
+    teluguName: 'మల్లన్న',
+    styleHint: 'Friendly',
+  },
+  {
+    family: 'Gurajada',
+    teluguName: 'గురజాడ',
+    styleHint: 'Handwriting · Poster',
+  },
+  {
+    family: 'Tenali Ramakrishna',
+    teluguName: 'తెనాలి రామకృష్ణ',
+    styleHint: 'Traditional Print',
+  },
+  {
+    family: 'Gidugu',
+    teluguName: 'గిడుగు',
+    styleHint: 'Headline Display',
+  },
+  {
+    family: 'Peddana',
+    teluguName: 'పెద్దన',
+    styleHint: 'Transitional Serif',
+  },
+  {
+    family: 'Suravaram',
+    teluguName: 'సురవరం',
+    styleHint: 'Brush Script',
+  },
+  {
+    family: 'Sirivennela',
+    teluguName: 'సిరివెన్నెల',
+    styleHint: 'Poetic Script',
+  },
+  {
+    family: 'Ponnala',
+    teluguName: 'పొన్నాల',
+    styleHint: 'Elegant Display',
+  },
 ];
 
 const INITIAL_JOHN_3_16 =
@@ -50,6 +141,7 @@ export default function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
+  const bannerInputRef = useRef<HTMLInputElement | null>(null);
   const verseSectionRef = useRef<HTMLElement | null>(null);
   const themeSectionRef = useRef<HTMLElement | null>(null);
   const styleSectionRef = useRef<HTMLElement | null>(null);
@@ -78,7 +170,8 @@ export default function App() {
     'యెహోవా నా కాపరి; నాకు లేమి కలుగదు.\nపచ్చికగల చోట్ల ఆయన నన్ను పరుండజేయుచున్నాడు.'
   );
 
-  // Background & Pollinations.ai / Custom Upload state
+  // Canvas Aspect Ratio & Background state
+  const [aspectRatio, setAspectRatio] = useState<CanvasAspectRatio>('square');
   const [selectedThemeId, setSelectedThemeId] = useState<string>(BACKGROUND_THEMES[0].id);
   const [customScenePrompt, setCustomScenePrompt] = useState<string>('');
   const [activePromptOverride, setActivePromptOverride] = useState<string>('');
@@ -87,18 +180,24 @@ export default function App() {
   const [customUploadName, setCustomUploadName] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  // Typography & canvas customization state
+  // Typography, Color, Outline & Shadow customization state
   const [fontFamily, setFontFamily] = useState<TeluguFontFamily>('Noto Sans Telugu');
   const [fontWeight, setFontWeight] = useState<'400' | '600' | '700'>('600');
   const [fontSize, setFontSize] = useState<number>(46);
-  const [textColor, setTextColor] = useState<VerseTextColor>('#FFFFFF');
+  const [textColor, setTextColor] = useState<string>('#FFFFFF');
   const [textAlign, setTextAlign] = useState<TextAlignOption>('center');
-  const [overlayOpacity, setOverlayOpacity] = useState<number>(0.5);
+  const [overlayOpacity, setOverlayOpacity] = useState<number>(0.45);
+  const [outlineColor, setOutlineColor] = useState<string>('none');
+  const [outlineWidth, setOutlineWidth] = useState<number>(0);
+  const [textShadow, setTextShadow] = useState<TextShadowOption>('soft');
 
-  // Church Logo state for bottom canvas footer
+  // Church Logo & Full-Width Footer Banner state
   const [churchLogoUrl, setChurchLogoUrl] = useState<string | null>(null);
   const [churchLogoName, setChurchLogoName] = useState<string | null>(null);
   const [logoUploadError, setLogoUploadError] = useState<string | null>(null);
+  const [footerBannerUrl, setFooterBannerUrl] = useState<string | null>(null);
+  const [footerBannerName, setFooterBannerName] = useState<string | null>(null);
+  const [bannerUploadError, setBannerUploadError] = useState<string | null>(null);
 
   // Download feedback state
   const [downloadBusy, setDownloadBusy] = useState<boolean>(false);
@@ -230,14 +329,22 @@ export default function App() {
     customVerseNumText,
   ]);
 
+  const activeDimensions = ASPECT_RATIO_CONFIG[aspectRatio];
   const activePrompt = activePromptOverride.trim() || selectedTheme.englishVisualPrompt;
   const aiImageUrl = useMemo(
-    () => buildPollinationsUrl(activePrompt, aiSeed),
-    [activePrompt, aiSeed]
+    () =>
+      buildPollinationsUrl(
+        activePrompt,
+        aiSeed,
+        activeDimensions.width,
+        activeDimensions.height
+      ),
+    [activePrompt, aiSeed, activeDimensions.width, activeDimensions.height]
   );
 
   const renderOptions: CanvasRenderOptions = useMemo(
     () => ({
+      aspectRatio,
       verseText: activeVerseText,
       referenceText: activeReferenceText,
       fontFamily,
@@ -246,9 +353,13 @@ export default function App() {
       textColor,
       textAlign,
       overlayOpacity,
+      outlineColor,
+      outlineWidth,
+      textShadow,
       fallbackGradient: selectedTheme.fallbackGradient,
     }),
     [
+      aspectRatio,
       activeVerseText,
       activeReferenceText,
       fontFamily,
@@ -257,6 +368,9 @@ export default function App() {
       textColor,
       textAlign,
       overlayOpacity,
+      outlineColor,
+      outlineWidth,
+      textShadow,
       selectedTheme.fallbackGradient,
     ]
   );
@@ -369,6 +483,54 @@ export default function App() {
     setLogoUploadError(null);
   };
 
+  const handleUploadFooterBanner = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setBannerUploadError('Please select a valid PNG or JPG footer banner image.');
+      return;
+    }
+
+    setBannerUploadError(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setFooterBannerUrl(reader.result);
+        setFooterBannerName(file.name);
+      }
+    };
+    reader.onerror = () => {
+      setBannerUploadError('Could not read the footer banner file. Please try another image.');
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleClearFooterBanner = () => {
+    setFooterBannerUrl(null);
+    setFooterBannerName(null);
+    setBannerUploadError(null);
+  };
+
+  const handleSelectOutlineColor = (colorValue: string) => {
+    setOutlineColor(colorValue);
+    if (colorValue !== 'none' && outlineWidth === 0) {
+      setOutlineWidth(3);
+    } else if (colorValue === 'none') {
+      setOutlineWidth(0);
+    }
+  };
+
+  const handleOutlineWidthChange = (nextWidth: number) => {
+    setOutlineWidth(nextWidth);
+    if (nextWidth > 0 && outlineColor === 'none') {
+      setOutlineColor('#000000');
+    } else if (nextWidth === 0 && outlineColor !== 'none') {
+      setOutlineColor('none');
+    }
+  };
+
   const handleDownloadImage = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -382,7 +544,7 @@ export default function App() {
         : verseMode === 'curated'
           ? selectedCuratedVerse.id
           : 'custom-telugu-verse';
-    const fileName = `vakyam-${slug}.png`;
+    const fileName = `vakyam-${slug}-${aspectRatio}.png`;
 
     const triggerLinkDownload = (href: string, revoke?: () => void) => {
       const link = document.createElement('a');
@@ -395,7 +557,9 @@ export default function App() {
         window.setTimeout(revoke, 1000);
       }
       setDownloadBusy(false);
-      setDownloadNotice(`Saved ${fileName} (1080 × 1080 PNG)`);
+      setDownloadNotice(
+        `Saved ${fileName} (${activeDimensions.width} × ${activeDimensions.height} PNG)`
+      );
       window.setTimeout(() => setDownloadNotice(null), 3500);
     };
 
@@ -884,14 +1048,14 @@ export default function App() {
 
             <hr className="border-[#E6E0D6]" />
 
-            {/* 2. Background Theme & Custom Image Upload Section */}
+            {/* 2. Aspect Ratio & Background Theme Section */}
             <section ref={themeSectionRef} aria-labelledby="backgrounds-heading" className="scroll-mt-24">
               <div className="flex items-center justify-between gap-3 mb-4">
                 <h2
                   id="backgrounds-heading"
                   className="font-display text-2xl font-semibold text-[#1E1B18]"
                 >
-                  2. Background Theme
+                  2. Canvas Size &amp; Background
                 </h2>
                 <button
                   type="button"
@@ -901,6 +1065,44 @@ export default function App() {
                   <RefreshCw className="w-3.5 h-3.5" />
                   <span>Regenerate AI</span>
                 </button>
+              </div>
+
+              {/* Image Orientation / Aspect Ratio Selector */}
+              <div className="mb-4">
+                <span className="block text-xs font-medium text-[#5C554D] mb-2">
+                  Image Orientation &amp; Size
+                </span>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['square', 'landscape', 'portrait'] as const).map((ratioKey) => {
+                    const cfg = ASPECT_RATIO_CONFIG[ratioKey];
+                    const active = aspectRatio === ratioKey;
+                    return (
+                      <button
+                        key={ratioKey}
+                        type="button"
+                        onClick={() => setAspectRatio(ratioKey)}
+                        aria-pressed={active}
+                        className={`p-2.5 rounded-xl border text-left transition-colors cursor-pointer ${
+                          active
+                            ? 'bg-[#F5EFE4] border-[#854D0E]'
+                            : 'bg-white border-[#E2DCD2] hover:border-[#C9BFAF]'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-xs font-semibold text-[#1E1B18] capitalize">
+                            {ratioKey}
+                          </span>
+                          <span className="text-[11px] tabular-nums text-[#854D0E] font-medium">
+                            {cfg.shortLabel}
+                          </span>
+                        </div>
+                        <div className="mt-0.5 text-[11px] tabular-nums text-[#6B6359]">
+                          {cfg.width}×{cfg.height}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -1035,46 +1237,40 @@ export default function App() {
               </div>
 
               <div className="flex flex-col gap-6">
-                {/* Font Family Selector */}
+                {/* Compact HTML Select Dropdown for 15 Telugu Google Fonts */}
                 <div>
-                  <span className="block text-xs font-medium text-[#5C554D] mb-2">
-                    Telugu Font Style
-                  </span>
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <button
-                      type="button"
-                      onClick={() => setFontFamily('Noto Sans Telugu')}
-                      className={`p-3 rounded-xl border text-left transition-colors cursor-pointer ${
-                        fontFamily === 'Noto Sans Telugu'
-                          ? 'bg-[#F5EFE4] border-[#854D0E]'
-                          : 'bg-white border-[#E2DCD2] hover:border-[#C9BFAF]'
-                      }`}
+                  <div className="flex items-center justify-between mb-2">
+                    <label
+                      htmlFor="telugu-font-select"
+                      className="text-xs font-medium text-[#5C554D]"
                     >
-                      <div className="font-telugu-noto text-base font-semibold text-[#1E1B18]">
-                        నోటో సాన్స్ తెలుగు
-                      </div>
-                      <div className="mt-0.5 text-xs text-[#6B6359]">
-                        Noto Sans Telugu · Crisp
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setFontFamily('Mandali')}
-                      className={`p-3 rounded-xl border text-left transition-colors cursor-pointer ${
-                        fontFamily === 'Mandali'
-                          ? 'bg-[#F5EFE4] border-[#854D0E]'
-                          : 'bg-white border-[#E2DCD2] hover:border-[#C9BFAF]'
-                      }`}
-                    >
-                      <div className="font-telugu-mandali text-base text-[#1E1B18]">
-                        మండలి తెలుగు
-                      </div>
-                      <div className="mt-0.5 text-xs text-[#6B6359]">
-                        Mandali · Classic
-                      </div>
-                    </button>
+                      Telugu Font Style (15 Fonts)
+                    </label>
+                    <span className="text-[11px] text-[#6B6359]">
+                      {TELUGU_FONTS.find((f) => f.family === fontFamily)?.styleHint}
+                    </span>
                   </div>
+                  <select
+                    id="telugu-font-select"
+                    value={fontFamily}
+                    onChange={(e) => setFontFamily(e.target.value as TeluguFontFamily)}
+                    className="w-full px-3.5 py-2.5 text-sm font-telugu-noto bg-white border border-[#E2DCD2] rounded-xl text-[#1E1B18] focus:outline-none focus:border-[#854D0E] cursor-pointer"
+                  >
+                    {TELUGU_FONTS.map((font) => (
+                      <option key={font.family} value={font.family}>
+                        {font.teluguName} — {font.family} ({font.styleHint})
+                      </option>
+                    ))}
+                  </select>
+                  <p
+                    className="mt-2 px-3 py-2 rounded-lg bg-[#FAF7F2] border border-[#ECE7DF] text-sm text-[#1E1B18] truncate"
+                    style={{
+                      fontFamily: `"${fontFamily}", "Noto Sans Telugu", sans-serif`,
+                      fontWeight: fontFamily === 'Noto Sans Telugu' ? fontWeight : '400',
+                    }}
+                  >
+                    దేవుడు ప్రేమయై యున్నాడు · {fontFamily}
+                  </p>
                 </div>
 
                 {/* Font Weight & Alignment */}
@@ -1111,7 +1307,7 @@ export default function App() {
 
                   <div>
                     <span className="block text-xs font-medium text-[#5C554D] mb-2">
-                      Font Weight {fontFamily === 'Mandali' ? '(Regular)' : ''}
+                      Font Weight {fontFamily !== 'Noto Sans Telugu' ? '(Regular)' : ''}
                     </span>
                     <div className="grid grid-cols-3 p-1 bg-[#EFEAE2] rounded-xl">
                       {(
@@ -1121,9 +1317,10 @@ export default function App() {
                           { id: '700', label: 'Bold' },
                         ] as const
                       ).map((w) => {
-                        const disabled = fontFamily === 'Mandali' && w.id !== '400';
+                        const disabled =
+                          fontFamily !== 'Noto Sans Telugu' && w.id !== '400';
                         const active =
-                          (fontFamily === 'Mandali' ? '400' : fontWeight) === w.id;
+                          (fontFamily !== 'Noto Sans Telugu' ? '400' : fontWeight) === w.id;
                         return (
                           <button
                             key={w.id}
@@ -1146,14 +1343,19 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Text Color Picker */}
+                {/* Verse Text Color (3 Presets + Custom Native Color Picker) */}
                 <div>
-                  <span className="block text-xs font-medium text-[#5C554D] mb-2">
-                    Verse Text Color
-                  </span>
-                  <div className="grid grid-cols-3 gap-2.5">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-[#5C554D]">
+                      Verse Text Color
+                    </span>
+                    <span className="text-[11px] font-mono text-[#6B6359] uppercase">
+                      {textColor}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {TEXT_COLORS.map((color) => {
-                      const active = textColor === color.hex;
+                      const active = textColor.toUpperCase() === color.hex;
                       return (
                         <button
                           key={color.hex}
@@ -1168,17 +1370,40 @@ export default function App() {
                         >
                           <span
                             aria-hidden="true"
-                            className="w-4 h-4 rounded-full border border-black/15 shrink-0"
-                            style={{ backgroundColor: color.swatchBg }}
+                            className="w-3.5 h-3.5 rounded-full border border-black/20 shrink-0"
+                            style={{ backgroundColor: color.hex }}
                           />
                           <span>{color.label}</span>
                         </button>
                       );
                     })}
+
+                    <label
+                      className={`relative flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border text-xs font-medium transition-colors cursor-pointer whitespace-nowrap overflow-hidden ${
+                        !TEXT_COLORS.some((c) => c.hex === textColor.toUpperCase())
+                          ? 'bg-[#F5EFE4] border-[#854D0E] text-[#1E1B18]'
+                          : 'bg-white border-[#E2DCD2] text-[#5C554D] hover:text-[#1E1B18]'
+                      }`}
+                    >
+                      <Palette className="w-3.5 h-3.5 text-[#854D0E] shrink-0" />
+                      <span>Custom</span>
+                      <span
+                        aria-hidden="true"
+                        className="w-3 h-3 rounded-full border border-black/20 shrink-0"
+                        style={{ backgroundColor: textColor }}
+                      />
+                      <input
+                        type="color"
+                        value={textColor}
+                        onChange={(e) => setTextColor(e.target.value)}
+                        aria-label="Pick custom verse text color"
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      />
+                    </label>
                   </div>
                 </div>
 
-                {/* Font Size Slider & Overlay Darkness Slider */}
+                {/* Font Size Slider & Backdrop Scrim Slider (0% - 90%) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div>
                     <div className="flex items-center justify-between text-xs mb-2">
@@ -1193,7 +1418,7 @@ export default function App() {
                       id="font-size-slider"
                       type="range"
                       min={30}
-                      max={64}
+                      max={72}
                       step={2}
                       value={fontSize}
                       onChange={(e) => setFontSize(Number(e.target.value))}
@@ -1213,8 +1438,8 @@ export default function App() {
                     <input
                       id="overlay-slider"
                       type="range"
-                      min={25}
-                      max={75}
+                      min={0}
+                      max={90}
                       step={5}
                       value={Math.round(overlayOpacity * 100)}
                       onChange={(e) => setOverlayOpacity(Number(e.target.value) / 100)}
@@ -1223,68 +1448,271 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Church Logo Upload for Bottom Footer */}
-                <div className="pt-4 border-t border-[#ECE7DF]">
-                  <span className="block text-xs font-medium text-[#5C554D] mb-2">
-                    Church Logo (Bottom Footer)
-                  </span>
-                  <input
-                    ref={logoInputRef}
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/*"
-                    onChange={handleUploadChurchLogo}
-                    className="hidden"
-                  />
+                {/* Text Outline (Stroke) & Shadow Controls */}
+                <div className="pt-4 border-t border-[#ECE7DF] flex flex-col gap-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[#1E1B18]">
+                      Text Outline (Stroke) &amp; Shadow
+                    </span>
+                    <span className="text-[11px] text-[#6B6359]">
+                      Keeps Telugu crisp on bright scenes
+                    </span>
+                  </div>
 
-                  {churchLogoUrl ? (
-                    <div className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-[#F5EFE4] border border-[#854D0E]">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <img
-                          src={churchLogoUrl}
-                          alt="Uploaded church logo"
-                          className="w-10 h-10 rounded-lg object-contain bg-[#1C1917] p-1 shrink-0"
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-[#5C554D]">
+                        Outline Color
+                      </span>
+                      <span className="text-[11px] font-mono text-[#6B6359] uppercase">
+                        {outlineColor === 'none' ? 'None' : outlineColor}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {OUTLINE_COLORS.map((item) => {
+                        const active =
+                          outlineColor.toUpperCase() === item.value.toUpperCase();
+                        return (
+                          <button
+                            key={item.value}
+                            type="button"
+                            onClick={() => handleSelectOutlineColor(item.value)}
+                            aria-pressed={active}
+                            className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+                              active
+                                ? 'bg-[#F5EFE4] border-[#854D0E] text-[#1E1B18]'
+                                : 'bg-white border-[#E2DCD2] text-[#5C554D] hover:text-[#1E1B18]'
+                            }`}
+                          >
+                            {item.swatch && (
+                              <span
+                                aria-hidden="true"
+                                className="w-3.5 h-3.5 rounded-full border border-black/20 shrink-0"
+                                style={{ backgroundColor: item.swatch }}
+                              />
+                            )}
+                            <span>{item.label}</span>
+                          </button>
+                        );
+                      })}
+
+                      <label
+                        className={`relative flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border text-xs font-medium transition-colors cursor-pointer whitespace-nowrap overflow-hidden ${
+                          outlineColor !== 'none' &&
+                          !OUTLINE_COLORS.some(
+                            (c) => c.value.toUpperCase() === outlineColor.toUpperCase()
+                          )
+                            ? 'bg-[#F5EFE4] border-[#854D0E] text-[#1E1B18]'
+                            : 'bg-white border-[#E2DCD2] text-[#5C554D] hover:text-[#1E1B18]'
+                        }`}
+                      >
+                        <Palette className="w-3.5 h-3.5 text-[#854D0E] shrink-0" />
+                        <span>Custom</span>
+                        {outlineColor !== 'none' && (
+                          <span
+                            aria-hidden="true"
+                            className="w-3 h-3 rounded-full border border-black/20 shrink-0"
+                            style={{ backgroundColor: outlineColor }}
+                          />
+                        )}
+                        <input
+                          type="color"
+                          value={outlineColor === 'none' ? '#000000' : outlineColor}
+                          onChange={(e) => handleSelectOutlineColor(e.target.value)}
+                          aria-label="Pick custom outline color"
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         />
-                        <div className="min-w-0">
-                          <div className="text-xs font-semibold text-[#1E1B18] truncate">
-                            {churchLogoName || 'Church Logo'}
-                          </div>
-                          <div className="text-xs text-[#6B6359]">
-                            Shown in bottom canvas footer
-                          </div>
-                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                    <div>
+                      <div className="flex items-center justify-between text-xs mb-2">
+                        <label htmlFor="outline-width-slider" className="font-medium text-[#5C554D]">
+                          Outline Thickness
+                        </label>
+                        <span className="tabular-nums font-semibold text-[#1E1B18]">
+                          {outlineWidth} px
+                        </span>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => logoInputRef.current?.click()}
-                          className="px-2.5 py-1.5 rounded-lg bg-white border border-[#E2DCD2] text-xs font-medium text-[#1E1B18] hover:bg-[#FAF8F5] cursor-pointer"
-                        >
-                          Change
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleClearChurchLogo}
-                          aria-label="Remove church logo"
-                          className="p-1.5 rounded-lg bg-white border border-[#E2DCD2] text-[#5C554D] hover:text-[#1E1B18] cursor-pointer"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
+                      <input
+                        id="outline-width-slider"
+                        type="range"
+                        min={0}
+                        max={8}
+                        step={0.5}
+                        value={outlineWidth}
+                        onChange={(e) => handleOutlineWidthChange(Number(e.target.value))}
+                        className="studio-slider w-full cursor-pointer"
+                      />
+                    </div>
+
+                    <div>
+                      <span className="block text-xs font-medium text-[#5C554D] mb-2">
+                        Text Shadow
+                      </span>
+                      <div className="grid grid-cols-3 p-1 bg-[#EFEAE2] rounded-xl">
+                        {(
+                          [
+                            { id: 'none', label: 'Off' },
+                            { id: 'soft', label: 'Soft' },
+                            { id: 'strong', label: 'Strong' },
+                          ] as const
+                        ).map((s) => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => setTextShadow(s.id)}
+                            aria-pressed={textShadow === s.id}
+                            className={`py-1.5 px-2 text-xs font-medium rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
+                              textShadow === s.id
+                                ? 'bg-white text-[#1E1B18] shadow-xs'
+                                : 'text-[#5C554D] hover:text-[#1E1B18]'
+                            }`}
+                          >
+                            {s.label}
+                          </button>
+                        ))}
                       </div>
                     </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => logoInputRef.current?.click()}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-white hover:bg-[#FAF7F2] border border-dashed border-[#C9BFAF] text-sm font-medium text-[#1E1B18] transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#854D0E]"
-                    >
-                      <Upload className="w-4 h-4 text-[#854D0E]" />
-                      <span>Upload Church Logo</span>
-                    </button>
-                  )}
+                  </div>
+                </div>
 
-                  {logoUploadError && (
-                    <p className="mt-1.5 text-xs text-[#991B1B]">{logoUploadError}</p>
-                  )}
+                {/* Church Branding & Footer Section (Logo + Telugu Address OR Full-Width Custom Banner) */}
+                <div className="pt-4 border-t border-[#ECE7DF] flex flex-col gap-3.5">
+                  <div>
+                    <span className="block text-xs font-semibold text-[#1E1B18]">
+                      Church Branding &amp; Bottom Footer
+                    </span>
+                    <span className="block text-xs text-[#6B6359] mt-0.5">
+                      Use the Telugu address footer with your logo, or upload a full-width custom footer banner.
+                    </span>
+                  </div>
+
+                  {/* Full-Width Custom Footer Banner Image Upload */}
+                  <div>
+                    <input
+                      ref={bannerInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/*"
+                      onChange={handleUploadFooterBanner}
+                      className="hidden"
+                    />
+
+                    {footerBannerUrl ? (
+                      <div className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-[#F5EFE4] border border-[#854D0E]">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <img
+                            src={footerBannerUrl}
+                            alt="Uploaded full-width footer banner"
+                            className="w-16 h-10 rounded-lg object-cover bg-[#1C1917] shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold text-[#1E1B18] truncate">
+                              {footerBannerName || 'Custom Footer Banner'}
+                            </div>
+                            <div className="text-xs text-[#6B6359]">
+                              Full-width bottom church footer active
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => bannerInputRef.current?.click()}
+                            className="px-2.5 py-1.5 rounded-lg bg-white border border-[#E2DCD2] text-xs font-medium text-[#1E1B18] hover:bg-[#FAF8F5] cursor-pointer"
+                          >
+                            Change
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleClearFooterBanner}
+                            aria-label="Remove full-width footer banner"
+                            className="p-1.5 rounded-lg bg-white border border-[#E2DCD2] text-[#5C554D] hover:text-[#1E1B18] cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => bannerInputRef.current?.click()}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-white hover:bg-[#FAF7F2] border border-dashed border-[#C9BFAF] text-sm font-medium text-[#1E1B18] transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#854D0E]"
+                      >
+                        <Upload className="w-4 h-4 text-[#854D0E]" />
+                        <span>Upload Full-Width Footer Banner Image</span>
+                      </button>
+                    )}
+
+                    {bannerUploadError && (
+                      <p className="mt-1.5 text-xs text-[#991B1B]">{bannerUploadError}</p>
+                    )}
+                  </div>
+
+                  {/* Church Logo Upload (used with built-in Telugu Address Footer when no full-width banner is active) */}
+                  <div className={footerBannerUrl ? 'opacity-55' : ''}>
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/*"
+                      onChange={handleUploadChurchLogo}
+                      className="hidden"
+                    />
+
+                    {churchLogoUrl ? (
+                      <div className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-[#F5EFE4] border border-[#854D0E]">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <img
+                            src={churchLogoUrl}
+                            alt="Uploaded church logo"
+                            className="w-10 h-10 rounded-lg object-contain bg-[#1C1917] p-1 shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold text-[#1E1B18] truncate">
+                              {churchLogoName || 'Church Logo'}
+                            </div>
+                            <div className="text-xs text-[#6B6359]">
+                              {footerBannerUrl
+                                ? 'Paused while custom banner is active'
+                                : 'Shown beside Telugu address footer'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => logoInputRef.current?.click()}
+                            className="px-2.5 py-1.5 rounded-lg bg-white border border-[#E2DCD2] text-xs font-medium text-[#1E1B18] hover:bg-[#FAF8F5] cursor-pointer"
+                          >
+                            Change
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleClearChurchLogo}
+                            aria-label="Remove church logo"
+                            className="p-1.5 rounded-lg bg-white border border-[#E2DCD2] text-[#5C554D] hover:text-[#1E1B18] cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => logoInputRef.current?.click()}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-white hover:bg-[#FAF7F2] border border-dashed border-[#C9BFAF] text-sm font-medium text-[#1E1B18] transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#854D0E]"
+                      >
+                        <Upload className="w-4 h-4 text-[#854D0E]" />
+                        <span>Upload Church Logo (With Address Text)</span>
+                      </button>
+                    )}
+
+                    {logoUploadError && (
+                      <p className="mt-1.5 text-xs text-[#991B1B]">{logoUploadError}</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </section>
@@ -1300,6 +1728,7 @@ export default function App() {
               customImageUrl={customUploadUrl}
               customImageName={customUploadName}
               churchLogoUrl={churchLogoUrl}
+              footerBannerUrl={footerBannerUrl}
               themeLabel={
                 activePromptOverride
                   ? 'Custom AI Scene'

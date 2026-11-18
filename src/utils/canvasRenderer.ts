@@ -1,26 +1,67 @@
-export type TeluguFontFamily = 'Noto Sans Telugu' | 'Mandali';
-export type VerseTextColor = '#FFFFFF' | '#F3D078' | '#FAF0D7';
+export type CanvasAspectRatio = 'square' | 'landscape' | 'portrait';
+
+export type TeluguFontFamily =
+  | 'Noto Sans Telugu'
+  | 'Mandali'
+  | 'NTR'
+  | 'Ramabhadra'
+  | 'Suranna'
+  | 'Sree Krushnadevaraya'
+  | 'Timmana'
+  | 'Mallanna'
+  | 'Gurajada'
+  | 'Tenali Ramakrishna'
+  | 'Gidugu'
+  | 'Peddana'
+  | 'Suravaram'
+  | 'Sirivennela'
+  | 'Ponnala';
+
 export type TextAlignOption = 'left' | 'center' | 'right';
+export type TextShadowOption = 'none' | 'soft' | 'strong';
+
+export const ASPECT_RATIO_CONFIG: Record<
+  CanvasAspectRatio,
+  { width: number; height: number; label: string; shortLabel: string; hint: string }
+> = {
+  square: {
+    width: 1080,
+    height: 1080,
+    label: 'Square (1:1)',
+    shortLabel: '1:1',
+    hint: '1080 × 1080 · Instagram & Facebook',
+  },
+  landscape: {
+    width: 1920,
+    height: 1080,
+    label: 'Landscape (16:9)',
+    shortLabel: '16:9',
+    hint: '1920 × 1080 · YouTube, TV & Slides',
+  },
+  portrait: {
+    width: 1080,
+    height: 1920,
+    label: 'Portrait (9:16)',
+    shortLabel: '9:16',
+    hint: '1080 × 1920 · WhatsApp Status & Reels',
+  },
+};
 
 export interface CanvasRenderOptions {
+  aspectRatio: CanvasAspectRatio;
   verseText: string;
   referenceText: string;
   fontFamily: TeluguFontFamily;
   fontSize: number;
   fontWeight: '400' | '600' | '700';
-  textColor: VerseTextColor;
+  textColor: string;
   textAlign: TextAlignOption;
-  overlayOpacity: number; // 0.25 to 0.78
+  overlayOpacity: number; // 0 to 0.90
+  outlineColor: string; // 'none' or hex color
+  outlineWidth: number; // 0 to 8
+  textShadow: TextShadowOption;
   fallbackGradient?: [string, string, string];
 }
-
-const CANVAS_SIZE = 1080;
-const HORIZONTAL_MARGIN = 110;
-const MAX_TEXT_WIDTH = CANVAS_SIZE - HORIZONTAL_MARGIN * 2;
-const FOOTER_HEIGHT = 116;
-const VERSE_STAGE_TOP = 64;
-const VERSE_STAGE_BOTTOM = CANVAS_SIZE - FOOTER_HEIGHT - 36;
-const MAX_VERTICAL_CONTENT_HEIGHT = VERSE_STAGE_BOTTOM - VERSE_STAGE_TOP;
 
 const CHURCH_TITLE_TE = 'ఫిలదెల్ఫియ ప్రార్ధన మందిరం';
 const CHURCH_ADDRESS_TE =
@@ -111,17 +152,47 @@ export async function ensureCanvasFontsLoaded(
 ): Promise<void> {
   if (typeof document === 'undefined' || !('fonts' in document)) return;
   try {
-    await Promise.all([
-      document.fonts.load(`400 ${fontSize}px "${fontFamily}"`),
-      document.fonts.load(`600 ${fontSize}px "${fontFamily}"`),
-      document.fonts.load(`700 ${fontSize}px "${fontFamily}"`),
-      document.fonts.load(`700 28px "Noto Sans Telugu"`),
-      document.fonts.load(`400 21px "Noto Sans Telugu"`),
+    const teluguSample = 'అఆఇఈకఖగఘదేవుడు వాక్యము';
+    const loads: Promise<FontFace[]>[] = [
+      document.fonts.load(`400 ${fontSize}px "${fontFamily}"`, teluguSample),
+      document.fonts.load(`700 28px "Noto Sans Telugu"`, teluguSample),
+      document.fonts.load(`400 21px "Noto Sans Telugu"`, teluguSample),
       document.fonts.load(`600 28px "Plus Jakarta Sans"`),
-    ]);
+    ];
+
+    if (fontFamily === 'Noto Sans Telugu') {
+      loads.push(
+        document.fonts.load(`600 ${fontSize}px "Noto Sans Telugu"`, teluguSample),
+        document.fonts.load(`700 ${fontSize}px "Noto Sans Telugu"`, teluguSample)
+      );
+    }
+
+    await Promise.all(loads);
     await document.fonts.ready;
   } catch {
     // Continue safely if font loading API throws in restricted contexts
+  }
+}
+
+function applyTextShadow(
+  ctx: CanvasRenderingContext2D,
+  shadowOption: TextShadowOption
+) {
+  if (shadowOption === 'none') {
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+  } else if (shadowOption === 'strong') {
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.88)';
+    ctx.shadowBlur = 24;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 5;
+  } else {
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.56)';
+    ctx.shadowBlur = 16;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 3;
   }
 }
 
@@ -129,154 +200,200 @@ export function renderVerseToCanvas(
   canvas: HTMLCanvasElement,
   backgroundImage: HTMLImageElement | null,
   options: CanvasRenderOptions,
-  churchLogoImage?: HTMLImageElement | null
+  churchLogoImage?: HTMLImageElement | null,
+  footerBannerImage?: HTMLImageElement | null
 ): void {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
-  canvas.width = CANVAS_SIZE;
-  canvas.height = CANVAS_SIZE;
+  const { width: canvasWidth, height: canvasHeight } =
+    ASPECT_RATIO_CONFIG[options.aspectRatio];
 
-  // 1. Draw background image or clean serene multi-stop theme gradient fallback
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+
+  // 1. Draw background image (cover fit) or serene multi-stop theme gradient fallback
   if (backgroundImage && backgroundImage.complete && backgroundImage.naturalWidth > 0) {
-    drawImageCover(ctx, backgroundImage, CANVAS_SIZE, CANVAS_SIZE);
+    drawImageCover(ctx, backgroundImage, canvasWidth, canvasHeight);
   } else {
     const [cTop, cMid, cBottom] = options.fallbackGradient ?? [
       '#2B1D14',
       '#5B3A24',
       '#1A1412',
     ];
-    const bgGrad = ctx.createLinearGradient(0, 0, CANVAS_SIZE * 0.6, CANVAS_SIZE);
+    const bgGrad = ctx.createLinearGradient(0, 0, canvasWidth * 0.6, canvasHeight);
     bgGrad.addColorStop(0, cTop);
     bgGrad.addColorStop(0.55, cMid);
     bgGrad.addColorStop(1, cBottom);
     ctx.fillStyle = bgGrad;
-    ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-    // Soft atmospheric horizon light glow for depth
     const horizonGlow = ctx.createRadialGradient(
-      CANVAS_SIZE * 0.5,
-      CANVAS_SIZE * 0.38,
+      canvasWidth * 0.5,
+      canvasHeight * 0.38,
       40,
-      CANVAS_SIZE * 0.5,
-      CANVAS_SIZE * 0.38,
-      640
+      canvasWidth * 0.5,
+      canvasHeight * 0.38,
+      Math.max(canvasWidth, canvasHeight) * 0.58
     );
     horizonGlow.addColorStop(0, 'rgba(255, 224, 178, 0.22)');
     horizonGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = horizonGlow;
-    ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
   }
 
-  // 2. Apply dark semi-transparent gradient/scrim for high Telugu text legibility
-  const baseOpacity = Math.min(Math.max(options.overlayOpacity, 0.2), 0.85);
-  const scrimGradient = ctx.createLinearGradient(0, 0, 0, CANVAS_SIZE);
-  scrimGradient.addColorStop(0, `rgba(10, 9, 12, ${Math.max(0.18, baseOpacity - 0.14)})`);
-  scrimGradient.addColorStop(0.45, `rgba(10, 9, 12, ${baseOpacity})`);
-  scrimGradient.addColorStop(1, `rgba(10, 9, 12, ${Math.min(0.88, baseOpacity + 0.14)})`);
-  ctx.fillStyle = scrimGradient;
-  ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+  // 2. Apply Backdrop Scrim (supports 0% to 90%)
+  const baseOpacity = Math.min(Math.max(options.overlayOpacity, 0), 0.9);
+  if (baseOpacity > 0.001) {
+    const scrimGradient = ctx.createLinearGradient(0, 0, 0, canvasHeight);
+    scrimGradient.addColorStop(0, `rgba(10, 9, 12, ${Math.max(0, baseOpacity - 0.12)})`);
+    scrimGradient.addColorStop(0.5, `rgba(10, 9, 12, ${baseOpacity})`);
+    scrimGradient.addColorStop(1, `rgba(10, 9, 12, ${Math.min(0.94, baseOpacity + 0.1)})`);
+    ctx.fillStyle = scrimGradient;
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-  // Subtle radial vignette around center to protect light midtones
-  const radial = ctx.createRadialGradient(
-    CANVAS_SIZE / 2,
-    CANVAS_SIZE / 2,
-    180,
-    CANVAS_SIZE / 2,
-    CANVAS_SIZE / 2,
-    760
+    const radial = ctx.createRadialGradient(
+      canvasWidth / 2,
+      canvasHeight / 2,
+      Math.min(canvasWidth, canvasHeight) * 0.16,
+      canvasWidth / 2,
+      canvasHeight / 2,
+      Math.max(canvasWidth, canvasHeight) * 0.72
+    );
+    radial.addColorStop(0, `rgba(0, 0, 0, ${baseOpacity * 0.12})`);
+    radial.addColorStop(1, `rgba(0, 0, 0, ${Math.min(0.45, baseOpacity * 0.55)})`);
+    ctx.fillStyle = radial;
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  }
+
+  // Determine active bottom footer height (Full-width custom banner OR standard Church footer bar)
+  const hasCustomBanner = Boolean(
+    footerBannerImage &&
+      footerBannerImage.complete &&
+      footerBannerImage.naturalWidth > 0 &&
+      footerBannerImage.naturalHeight > 0
   );
-  radial.addColorStop(0, 'rgba(0, 0, 0, 0.08)');
-  radial.addColorStop(1, 'rgba(0, 0, 0, 0.34)');
-  ctx.fillStyle = radial;
-  ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
-  // Subtle inset editorial frame border (stops cleanly above the bottom footer bar)
-  ctx.save();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(42, 42, CANVAS_SIZE - 84, CANVAS_SIZE - FOOTER_HEIGHT - 64);
-  ctx.restore();
+  let footerHeight = options.aspectRatio === 'portrait' ? 136 : 116;
+  if (hasCustomBanner && footerBannerImage) {
+    const aspectScaledH = Math.round(
+      canvasWidth * (footerBannerImage.naturalHeight / footerBannerImage.naturalWidth)
+    );
+    footerHeight = Math.max(40, aspectScaledH);
+  }
 
-  // 3. Auto-fit Telugu font size so long verses or single long words never clip or slice
-  const resolvedWeight = options.fontFamily === 'Mandali' ? '400' : options.fontWeight;
+  const verseStageTop = options.aspectRatio === 'portrait' ? 110 : 64;
+  const reservedBottom = Math.min(footerHeight, Math.round(canvasHeight * 0.42));
+  const verseStageBottom = canvasHeight - reservedBottom - 40;
+  const maxVerticalContentHeight = Math.max(240, verseStageBottom - verseStageTop);
+
+  // Subtle inset editorial frame border (stops cleanly above footer)
+  if (!hasCustomBanner) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(42, 42, canvasWidth - 84, canvasHeight - footerHeight - 64);
+    ctx.restore();
+  }
+
+  // 3. Auto-fit Telugu font size within orientation-aware bounds
+  const horizontalMargin = options.aspectRatio === 'landscape' ? 180 : 100;
+  const maxTextWidth = canvasWidth - horizontalMargin * 2;
+  const resolvedWeight = options.fontFamily === 'Noto Sans Telugu' ? options.fontWeight : '400';
+
+  // Scale slightly higher base allowance on Landscape 1920w if desired, respecting user fontSize
   let effectiveFontSize = options.fontSize;
   let wrappedLines: string[] = [];
   let lineHeight = Math.round(effectiveFontSize * 1.58);
-  let refFontSize = Math.max(24, Math.round(effectiveFontSize * 0.62));
+  let refFontSize = Math.max(24, Math.round(effectiveFontSize * 0.6));
   const refGap = 44;
 
   const verseInput = options.verseText.trim() || 'దేవుని వాక్యము';
 
   while (effectiveFontSize >= 24) {
     ctx.font = `${resolvedWeight} ${effectiveFontSize}px "${options.fontFamily}", "Noto Sans Telugu", sans-serif`;
-    const result = wrapTeluguLines(ctx, verseInput, MAX_TEXT_WIDTH);
+    const result = wrapTeluguLines(ctx, verseInput, maxTextWidth);
     wrappedLines = result.lines;
     lineHeight = Math.round(effectiveFontSize * 1.58);
     refFontSize = Math.max(22, Math.round(effectiveFontSize * 0.6));
-    const totalHeight = wrappedLines.length * lineHeight + (options.referenceText ? refGap + refFontSize : 0);
+    const totalHeight =
+      wrappedLines.length * lineHeight +
+      (options.referenceText.trim() ? refGap + refFontSize : 0);
 
-    if (!result.maxTokenOverflow && totalHeight <= MAX_VERTICAL_CONTENT_HEIGHT) {
+    if (!result.maxTokenOverflow && totalHeight <= maxVerticalContentHeight) {
       break;
     }
     effectiveFontSize -= 2;
   }
 
-  // Re-measure one final time at the settled effectiveFontSize
   ctx.font = `${resolvedWeight} ${effectiveFontSize}px "${options.fontFamily}", "Noto Sans Telugu", sans-serif`;
   if (wrappedLines.length === 0) {
-    wrappedLines = wrapTeluguLines(ctx, verseInput, MAX_TEXT_WIDTH).lines;
+    wrappedLines = wrapTeluguLines(ctx, verseInput, maxTextWidth).lines;
   }
 
   const hasReference = Boolean(options.referenceText.trim());
   const blockTextHeight = wrappedLines.length * lineHeight;
   const totalBlockHeight = blockTextHeight + (hasReference ? refGap + refFontSize + 18 : 0);
 
-  let anchorX = CANVAS_SIZE / 2;
+  let anchorX = canvasWidth / 2;
   if (options.textAlign === 'left') {
-    anchorX = HORIZONTAL_MARGIN;
+    anchorX = horizontalMargin;
   } else if (options.textAlign === 'right') {
-    anchorX = CANVAS_SIZE - HORIZONTAL_MARGIN;
+    anchorX = canvasWidth - horizontalMargin;
   }
 
   const startY =
-    VERSE_STAGE_TOP +
-    (VERSE_STAGE_BOTTOM - VERSE_STAGE_TOP - totalBlockHeight) / 2 +
+    verseStageTop +
+    (verseStageBottom - verseStageTop - totalBlockHeight) / 2 +
     effectiveFontSize * 0.85;
 
-  // 4. Render Telugu Verse Lines with clean shadow for crisp diacritic clarity
+  // 4. Render Telugu Verse Lines with optional Outline (Stroke) & Shadow
+  const hasOutline = options.outlineColor !== 'none' && options.outlineWidth > 0;
+
   ctx.save();
   ctx.textAlign = options.textAlign;
   ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = options.textColor;
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.58)';
-  ctx.shadowBlur = 18;
-  ctx.shadowOffsetX = 0;
-  ctx.shadowOffsetY = 3;
+  ctx.lineJoin = 'round';
+  ctx.miterLimit = 2;
 
   wrappedLines.forEach((line, index) => {
     if (!line) return;
     const y = startY + index * lineHeight;
-    ctx.fillText(line, anchorX, y);
+
+    if (hasOutline) {
+      applyTextShadow(ctx, options.textShadow);
+      ctx.strokeStyle = options.outlineColor;
+      ctx.lineWidth = options.outlineWidth * 2;
+      ctx.strokeText(line, anchorX, y);
+
+      // Draw fill cleanly over inner stroke half without duplicating heavy shadow
+      applyTextShadow(ctx, 'none');
+      ctx.fillStyle = options.textColor;
+      ctx.fillText(line, anchorX, y);
+    } else {
+      applyTextShadow(ctx, options.textShadow);
+      ctx.fillStyle = options.textColor;
+      ctx.fillText(line, anchorX, y);
+    }
   });
 
   // 5. Render hairline rule & Bible reference
   if (hasReference) {
     const ruleY = startY + (wrappedLines.length - 1) * lineHeight + 34;
     const ruleWidth = 64;
-    let ruleX = CANVAS_SIZE / 2 - ruleWidth / 2;
+    let ruleX = canvasWidth / 2 - ruleWidth / 2;
     if (options.textAlign === 'left') {
-      ruleX = HORIZONTAL_MARGIN;
+      ruleX = horizontalMargin;
     } else if (options.textAlign === 'right') {
-      ruleX = CANVAS_SIZE - HORIZONTAL_MARGIN - ruleWidth;
+      ruleX = canvasWidth - horizontalMargin - ruleWidth;
     }
 
     ctx.save();
-    ctx.shadowBlur = 0;
+    applyTextShadow(ctx, 'none');
     ctx.strokeStyle =
       options.textColor === '#F3D078'
-        ? 'rgba(243, 208, 120, 0.65)'
-        : 'rgba(255, 255, 255, 0.45)';
+        ? 'rgba(243, 208, 120, 0.68)'
+        : 'rgba(255, 255, 255, 0.5)';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(ruleX, ruleY);
@@ -285,33 +402,54 @@ export function renderVerseToCanvas(
     ctx.restore();
 
     const refY = ruleY + 38 + refFontSize * 0.25;
+    const refText = `— ${options.referenceText.trim()}`;
     ctx.font = `600 ${refFontSize}px "${options.fontFamily}", "Noto Sans Telugu", sans-serif`;
-    ctx.fillStyle = options.textColor === '#FFFFFF' ? '#F5EFE6' : options.textColor;
-    ctx.fillText(`— ${options.referenceText.trim()}`, anchorX, refY);
+
+    if (hasOutline) {
+      applyTextShadow(ctx, options.textShadow);
+      ctx.strokeStyle = options.outlineColor;
+      ctx.lineWidth = Math.max(1.5, options.outlineWidth * 1.4);
+      ctx.strokeText(refText, anchorX, refY);
+
+      applyTextShadow(ctx, 'none');
+      ctx.fillStyle = options.textColor === '#FFFFFF' ? '#F5EFE6' : options.textColor;
+      ctx.fillText(refText, anchorX, refY);
+    } else {
+      applyTextShadow(ctx, options.textShadow);
+      ctx.fillStyle = options.textColor === '#FFFFFF' ? '#F5EFE6' : options.textColor;
+      ctx.fillText(refText, anchorX, refY);
+    }
   }
 
   ctx.restore();
 
-  // 6. Render Semi-Transparent Dark Church Footer Bar at the Very Bottom Center
-  const footerY = CANVAS_SIZE - FOOTER_HEIGHT;
-  ctx.save();
-  ctx.fillStyle = 'rgba(10, 9, 12, 0.72)';
-  ctx.fillRect(0, footerY, CANVAS_SIZE, FOOTER_HEIGHT);
+  // 6. Render Bottom Footer: Full-Width Custom Banner Image OR Default Church Logo + Telugu Address Bar
+  if (hasCustomBanner && footerBannerImage) {
+    const bannerY = canvasHeight - footerHeight;
+    ctx.save();
+    ctx.drawImage(footerBannerImage, 0, bannerY, canvasWidth, footerHeight);
+    ctx.restore();
+    return;
+  }
 
-  // Delicate top hairline accent on footer bar
+  const footerY = canvasHeight - footerHeight;
+  ctx.save();
+  ctx.fillStyle = 'rgba(10, 9, 12, 0.74)';
+  ctx.fillRect(0, footerY, canvasWidth, footerHeight);
+
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(0, footerY + 0.5);
-  ctx.lineTo(CANVAS_SIZE, footerY + 0.5);
+  ctx.lineTo(canvasWidth, footerY + 0.5);
   ctx.stroke();
 
   const hasLogo = Boolean(
     churchLogoImage && churchLogoImage.complete && churchLogoImage.naturalWidth > 0
   );
 
-  const logoMaxBox = 72;
-  const logoGap = 20;
+  const logoMaxBox = options.aspectRatio === 'portrait' ? 80 : 72;
+  const logoGap = 22;
   let logoDrawW = 0;
   let logoDrawH = 0;
 
@@ -326,16 +464,15 @@ export function renderVerseToCanvas(
     }
   }
 
-  // Auto-fit footer font sizes so both Telugu lines never clip horizontally
-  let titleSize = 27;
-  let addrSize = 20;
+  let titleSize = options.aspectRatio === 'landscape' ? 30 : 27;
+  let addrSize = options.aspectRatio === 'landscape' ? 22 : 20;
   const maxFooterTextWidth =
-    CANVAS_SIZE - 80 - (hasLogo ? logoDrawW + logoGap : 0);
+    canvasWidth - 72 - (hasLogo ? logoDrawW + logoGap : 0);
 
   let titleWidth = 0;
   let addrWidth = 0;
 
-  while (addrSize >= 14) {
+  while (addrSize >= 13) {
     ctx.font = `700 ${titleSize}px "Noto Sans Telugu", sans-serif`;
     titleWidth = ctx.measureText(CHURCH_TITLE_TE).width;
     ctx.font = `400 ${addrSize}px "Noto Sans Telugu", sans-serif`;
@@ -348,7 +485,7 @@ export function renderVerseToCanvas(
   }
 
   const textBlockWidth = Math.max(titleWidth, addrWidth);
-  const footerCenterY = footerY + FOOTER_HEIGHT / 2;
+  const footerCenterY = footerY + footerHeight / 2;
   const line1Y = footerCenterY - 8;
   const line2Y = footerCenterY + 24;
 
@@ -360,7 +497,7 @@ export function renderVerseToCanvas(
 
   if (hasLogo && churchLogoImage) {
     const totalGroupWidth = logoDrawW + logoGap + textBlockWidth;
-    const groupStartX = (CANVAS_SIZE - totalGroupWidth) / 2;
+    const groupStartX = (canvasWidth - totalGroupWidth) / 2;
     const logoX = groupStartX;
     const logoY = footerCenterY - logoDrawH / 2;
 
@@ -381,11 +518,11 @@ export function renderVerseToCanvas(
 
     ctx.font = `700 ${titleSize}px "Noto Sans Telugu", sans-serif`;
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillText(CHURCH_TITLE_TE, CANVAS_SIZE / 2, line1Y);
+    ctx.fillText(CHURCH_TITLE_TE, canvasWidth / 2, line1Y);
 
     ctx.font = `400 ${addrSize}px "Noto Sans Telugu", sans-serif`;
     ctx.fillStyle = '#FAF0D7';
-    ctx.fillText(CHURCH_ADDRESS_TE, CANVAS_SIZE / 2, line2Y);
+    ctx.fillText(CHURCH_ADDRESS_TE, canvasWidth / 2, line2Y);
   }
 
   ctx.restore();
