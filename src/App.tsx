@@ -1,8 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlignCenter,
-  AlignLeft,
-  AlignRight,
   BookMarked,
   BookOpen,
   ChevronLeft,
@@ -35,6 +32,7 @@ import {
   TeluguFontFamily,
   TextAlignOption,
   TextShadowOption,
+  TextVerticalOption,
 } from './utils/canvasRenderer';
 import { VerseCanvasPreview } from './components/VerseCanvasPreview';
 
@@ -186,6 +184,7 @@ export default function App() {
   const [fontSize, setFontSize] = useState<number>(46);
   const [textColor, setTextColor] = useState<string>('#FFFFFF');
   const [textAlign, setTextAlign] = useState<TextAlignOption>('center');
+  const [verticalAlign, setVerticalAlign] = useState<TextVerticalOption>('middle');
   const [overlayOpacity, setOverlayOpacity] = useState<number>(0.45);
   const [outlineColor, setOutlineColor] = useState<string>('none');
   const [outlineWidth, setOutlineWidth] = useState<number>(0);
@@ -352,6 +351,7 @@ export default function App() {
       fontWeight,
       textColor,
       textAlign,
+      verticalAlign,
       overlayOpacity,
       outlineColor,
       outlineWidth,
@@ -367,6 +367,7 @@ export default function App() {
       fontWeight,
       textColor,
       textAlign,
+      verticalAlign,
       overlayOpacity,
       outlineColor,
       outlineWidth,
@@ -1273,35 +1274,80 @@ export default function App() {
                   </p>
                 </div>
 
-                {/* Font Weight & Alignment */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* 3x3 Text Alignment & Placement Grid + Font Weight */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 items-start">
                   <div>
-                    <span className="block text-xs font-medium text-[#5C554D] mb-2">
-                      Text Alignment
-                    </span>
-                    <div className="grid grid-cols-3 p-1 bg-[#EFEAE2] rounded-xl">
-                      {(
-                        [
-                          { id: 'left', label: 'Left', Icon: AlignLeft },
-                          { id: 'center', label: 'Center', Icon: AlignCenter },
-                          { id: 'right', label: 'Right', Icon: AlignRight },
-                        ] as const
-                      ).map(({ id, label, Icon }) => (
-                        <button
-                          key={id}
-                          type="button"
-                          onClick={() => setTextAlign(id)}
-                          aria-pressed={textAlign === id}
-                          className={`inline-flex items-center justify-center gap-1.5 py-2 px-2 text-xs font-medium rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
-                            textAlign === id
-                              ? 'bg-white text-[#1E1B18] shadow-xs'
-                              : 'text-[#5C554D] hover:text-[#1E1B18]'
-                          }`}
-                        >
-                          <Icon className="w-3.5 h-3.5" />
-                          <span>{label}</span>
-                        </button>
-                      ))}
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-[#5C554D]">
+                        Alignment &amp; Placement
+                      </span>
+                      <span className="text-[11px] font-medium text-[#854D0E] capitalize">
+                        {verticalAlign}-{textAlign}
+                      </span>
+                    </div>
+
+                    <div
+                      role="group"
+                      aria-label="9-Position Text Alignment and Placement Grid"
+                      className="inline-grid grid-cols-3 gap-1.5 p-1.5 bg-[#EFEAE2] rounded-xl border border-[#E2DCD2]"
+                    >
+                      {(['top', 'middle', 'bottom'] as const).map((vPos) =>
+                        (['left', 'center', 'right'] as const).map((hPos) => {
+                          const isActive =
+                            verticalAlign === vPos && textAlign === hPos;
+                          const label = `${vPos}-${hPos}`;
+                          const verticalFlex =
+                            vPos === 'top'
+                              ? 'justify-start'
+                              : vPos === 'bottom'
+                                ? 'justify-end'
+                                : 'justify-center';
+                          const horizontalFlex =
+                            hPos === 'left'
+                              ? 'items-start'
+                              : hPos === 'right'
+                                ? 'items-end'
+                                : 'items-center';
+
+                          return (
+                            <button
+                              key={label}
+                              type="button"
+                              title={`Place text at ${vPos} ${hPos}`}
+                              aria-label={`Place text at ${vPos} ${hPos}`}
+                              aria-pressed={isActive}
+                              onClick={() => {
+                                setVerticalAlign(vPos);
+                                setTextAlign(hPos);
+                              }}
+                              className={`w-10 h-10 p-1.5 rounded-lg flex flex-col gap-[2.5px] transition-all cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#854D0E] ${verticalFlex} ${horizontalFlex} ${
+                                isActive
+                                  ? 'bg-[#854D0E] shadow-xs'
+                                  : 'bg-white/85 hover:bg-white border border-[#E2DCD2]/70'
+                              }`}
+                            >
+                              <span
+                                aria-hidden="true"
+                                className={`h-[2px] w-4 rounded-full ${
+                                  isActive ? 'bg-white' : 'bg-[#786F65]'
+                                }`}
+                              />
+                              <span
+                                aria-hidden="true"
+                                className={`h-[2px] w-2.5 rounded-full ${
+                                  isActive ? 'bg-white/90' : 'bg-[#786F65]'
+                                }`}
+                              />
+                              <span
+                                aria-hidden="true"
+                                className={`h-[2px] w-3.5 rounded-full ${
+                                  isActive ? 'bg-white' : 'bg-[#786F65]'
+                                }`}
+                              />
+                            </button>
+                          );
+                        })
+                      )}
                     </div>
                   </div>
 

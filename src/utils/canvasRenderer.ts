@@ -18,6 +18,7 @@ export type TeluguFontFamily =
   | 'Ponnala';
 
 export type TextAlignOption = 'left' | 'center' | 'right';
+export type TextVerticalOption = 'top' | 'middle' | 'bottom';
 export type TextShadowOption = 'none' | 'soft' | 'strong';
 
 export const ASPECT_RATIO_CONFIG: Record<
@@ -56,6 +57,7 @@ export interface CanvasRenderOptions {
   fontWeight: '400' | '600' | '700';
   textColor: string;
   textAlign: TextAlignOption;
+  verticalAlign: TextVerticalOption;
   overlayOpacity: number; // 0 to 0.90
   outlineColor: string; // 'none' or hex color
   outlineWidth: number; // 0 to 8
@@ -282,9 +284,9 @@ export function renderVerseToCanvas(
     footerHeight = Math.max(40, aspectScaledH);
   }
 
-  const verseStageTop = options.aspectRatio === 'portrait' ? 110 : 64;
+  const verseStageTop = options.aspectRatio === 'portrait' ? 115 : 88;
   const reservedBottom = Math.min(footerHeight, Math.round(canvasHeight * 0.42));
-  const verseStageBottom = canvasHeight - reservedBottom - 40;
+  const verseStageBottom = canvasHeight - reservedBottom - 44;
   const maxVerticalContentHeight = Math.max(240, verseStageBottom - verseStageTop);
 
   // Subtle inset editorial frame border (stops cleanly above footer)
@@ -332,8 +334,12 @@ export function renderVerseToCanvas(
   }
 
   const hasReference = Boolean(options.referenceText.trim());
-  const blockTextHeight = wrappedLines.length * lineHeight;
-  const totalBlockHeight = blockTextHeight + (hasReference ? refGap + refFontSize + 18 : 0);
+  const lastLineOffset = (wrappedLines.length - 1) * lineHeight;
+  const ascentOffset = effectiveFontSize * 0.85;
+  const exactVisualHeight =
+    ascentOffset +
+    lastLineOffset +
+    (hasReference ? 34 + 38 + refFontSize * 0.5 : effectiveFontSize * 0.25);
 
   let anchorX = canvasWidth / 2;
   if (options.textAlign === 'left') {
@@ -342,10 +348,20 @@ export function renderVerseToCanvas(
     anchorX = canvasWidth - horizontalMargin;
   }
 
-  const startY =
-    verseStageTop +
-    (verseStageBottom - verseStageTop - totalBlockHeight) / 2 +
-    effectiveFontSize * 0.85;
+  let startY: number;
+  if (options.verticalAlign === 'top') {
+    startY = verseStageTop + ascentOffset;
+  } else if (options.verticalAlign === 'bottom') {
+    startY = Math.max(
+      verseStageTop + ascentOffset,
+      verseStageBottom - exactVisualHeight + ascentOffset
+    );
+  } else {
+    startY =
+      verseStageTop +
+      (verseStageBottom - verseStageTop - exactVisualHeight) / 2 +
+      ascentOffset;
+  }
 
   // 4. Render Telugu Verse Lines with optional Outline (Stroke) & Shadow
   const hasOutline = options.outlineColor !== 'none' && options.outlineWidth > 0;
